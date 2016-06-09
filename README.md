@@ -38,6 +38,12 @@
 * Lanczos2
 * Lanczos3
 
+Ответ может иметь следующие коды:
+* 200 StatusOK - всё нормально, в теле должна быть валидная png-шка
+* 405 StatusMethodNotAllowed - если делать что-то кроме POST
+* 400 StatusBadRequest - если передавать кривые параметры или неправильное имя файла
+* 500 StatusInternalServerError - при любых ошибках перекодирования
+
 Алсо если зайти по [http://localhost:5000/form](http://localhost:5000/form),
 то покажет пример формы, которой постить.
 
