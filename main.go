@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"image"
+	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"log"
 	"net/http"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 
@@ -25,7 +28,7 @@ func main() {
 			httpErr(w, r, http.StatusMethodNotAllowed, "Hint: use POST method", nil)
 			return
 		}
-		file, _, err := r.FormFile("file")
+		file, header, err := r.FormFile("file")
 		defer file.Close()
 
 		width := parseUint(r, "w", defaultMaxWidth)
@@ -36,17 +39,40 @@ func main() {
 			return
 		}
 
-		var buf bytes.Buffer
-
-		err = ffmpeg(file, &buf)
-		if err != nil {
-			httpErr(w, r, http.StatusInternalServerError, "ffmpeg Err: ", err)
-			return
-		}
-
-		m, _, err := image.Decode(&buf)
-		if err != nil {
-			httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
+		var m image.Image
+		switch path.Ext(header.Filename) {
+		case ".webm":
+			var buf bytes.Buffer
+			err = ffmpeg(file, &buf)
+			if err != nil {
+				httpErr(w, r, http.StatusInternalServerError, "ffmpeg Err: ", err)
+				return
+			}
+			m, _, err = image.Decode(&buf)
+			if err != nil {
+				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
+				return
+			}
+		case ".png":
+			m, err = png.Decode(file)
+			if err != nil {
+				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
+				return
+			}
+		case ".gif":
+			m, err = gif.Decode(file)
+			if err != nil {
+				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
+				return
+			}
+		case ".jpg", ".jpeg":
+			m, err = jpeg.Decode(file)
+			if err != nil {
+				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
+				return
+			}
+		default:
+			httpErr(w, r, http.StatusBadRequest, "Bad file type: "+header.Filename, nil)
 			return
 		}
 
@@ -70,7 +96,11 @@ func main() {
 			m = resize.Thumbnail(width, height, m, resize.Lanczos3)
 		}
 
-		png.Encode(w, m)
+		err = png.Encode(w, m)
+		if err != nil {
+			httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
+			return
+		}
 	})
 	http.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
 		r.Header.Add("Accept", "text/html")
