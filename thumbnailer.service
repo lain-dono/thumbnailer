@@ -1,0 +1,8 @@
+[Unit]
+Description=Thumbnailer
+
+[Service]
+Slice=machine.slice
+ExecStart=/usr/bin/rkt run --insecure-options=image --port=www:5000 /opt/thumbnailer-linux-amd64.aci
+KillMode=mixed
+Restart=always
