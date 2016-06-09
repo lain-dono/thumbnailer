@@ -1,0 +1,9 @@
+.*
+*.tar.*
+*.aci
+thumbnailer
+ffmpeg
+acbuild
+go/
+src/
+pkg/
