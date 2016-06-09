@@ -40,13 +40,13 @@ func main() {
 
 		err = ffmpeg(file, &buf)
 		if err != nil {
-			httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
+			httpErr(w, r, http.StatusInternalServerError, "ffmpeg Err: ", err)
 			return
 		}
 
 		m, _, err := image.Decode(&buf)
 		if err != nil {
-			httpErr(w, r, http.StatusInternalServerError, "ffmpeg Err: ", err)
+			httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
 			return
 		}
 
@@ -99,7 +99,7 @@ func parseUint(r *http.Request, name string, def uint) uint {
 }
 
 func ffmpeg(r io.Reader, w io.Writer) error {
-	cmd := exec.Command("./ffmpeg",
+	cmd := exec.Command("ffmpeg",
 		"-f", "webm", "-i", "pipe:0",
 		"-f", "image2pipe", "-c", "png", "-vframes", "1", "pipe:1")
 	cmd.Stdin = r
@@ -107,7 +107,7 @@ func ffmpeg(r io.Reader, w io.Writer) error {
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	err := cmd.Run()
-	if err != nil {
+	if err != nil && buf.Len() != 0 {
 		err = errors.New(buf.String())
 	}
 	return err
