@@ -23,10 +23,11 @@ if command -v go > /dev/null 2>&1; then
 else
    echo "golang not exists"
    if [ ! -d "./go" ]; then
-      echo "download go"
-      wget https://storage.googleapis.com/golang/$GOVERSION.tar.gz
+      if [ ! -f $GOVERSION.tar.gz ]; then
+         echo "download go"
+         wget https://storage.googleapis.com/golang/$GOVERSION.tar.gz
+      fi
       tar xf $GOVERSION.tar.gz
-      rm -f $GOVERSION.tar.gz
    fi
    export GOROOT=`pwd`/go
    export PATH=`pwd`/go:$PATH
@@ -37,10 +38,11 @@ if command -v $ACBUILD > /dev/null 2>&1; then
 else
    echo "acbuild not exists"
    if [ ! -f "./acbuild" ]; then
-      echo "download acbuild"
-      wget https://github.com/appc/acbuild/releases/download/$ACBUILDVERSION/acbuild.tar.gz
+      if [ ! -f acbuild.tar.gz ]; then
+         echo "download acbuild"
+         wget https://github.com/appc/acbuild/releases/download/$ACBUILDVERSION/acbuild.tar.gz
+      fi
       tar xf acbuild.tar.gz
-      rm -f acbuild.tar.gz
    fi
    ACBUILD=./acbuild
 fi
@@ -49,9 +51,10 @@ if [ -f "./ffmpeg" ]; then
    echo "./ffmpeg exists"
 else
    echo "./ffmpeg not exists"
-   #wget http://johnvansickle.com/ffmpeg/builds/ffmpeg-git-64bit-static.tar.xz
+   if [ ! -f ffmpeg-git-64bit-static.tar.xz ]; then
+      wget http://johnvansickle.com/ffmpeg/builds/ffmpeg-git-64bit-static.tar.xz
+   fi
    tar xvf ffmpeg-git-64bit-static.tar.xz -C `pwd` --strip=1 --wildcards '*ffmpeg'
-   #rm -f ffmpeg-git-64bit-static.tar.xz
 fi
 
 echo "make tool"
