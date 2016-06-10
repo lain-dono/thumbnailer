@@ -28,11 +28,12 @@ func main() {
 			httpErr(w, r, http.StatusMethodNotAllowed, "Hint: use POST method", nil)
 			return
 		}
+
 		file, header, err := r.FormFile("file")
 		defer file.Close()
 
-		width := parseUint(r, "w", defaultMaxWidth)
-		height := parseUint(r, "h", defaultMaxHeight)
+		width := uint(parseInt(r, "w", defaultMaxWidth))
+		height := uint(parseInt(r, "h", defaultMaxHeight))
 
 		if err != nil {
 			httpErr(w, r, http.StatusBadRequest, "Err: ", err)
@@ -45,34 +46,21 @@ func main() {
 			var buf bytes.Buffer
 			err = ffmpeg(file, &buf)
 			if err != nil {
-				httpErr(w, r, http.StatusInternalServerError, "ffmpeg Err: ", err)
-				return
+				break
 			}
 			m, _, err = image.Decode(&buf)
-			if err != nil {
-				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
-				return
-			}
 		case ".png":
 			m, err = png.Decode(file)
-			if err != nil {
-				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
-				return
-			}
 		case ".gif":
 			m, err = gif.Decode(file)
-			if err != nil {
-				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
-				return
-			}
 		case ".jpg", ".jpeg":
 			m, err = jpeg.Decode(file)
-			if err != nil {
-				httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
-				return
-			}
 		default:
 			httpErr(w, r, http.StatusBadRequest, "Bad file type: "+header.Filename, nil)
+			return
+		}
+		if err != nil {
+			httpErr(w, r, http.StatusInternalServerError, "Convert Err: ", err)
 			return
 		}
 
@@ -80,6 +68,10 @@ func main() {
 		if interp == "" {
 			interp = defaultInterp
 		}
+
+		srcSize := m.Bounds().Size()
+		w.Header().Add("SrcImage-Width", strconv.Itoa(srcSize.X))
+		w.Header().Add("SrcImage-Height", strconv.Itoa(srcSize.Y))
 
 		switch strings.ToLower(interp) {
 		case "nearestneighbor": // XXX default
@@ -96,17 +88,27 @@ func main() {
 			m = resize.Thumbnail(width, height, m, resize.Lanczos3)
 		}
 
-		err = png.Encode(w, m)
+		dstSize := m.Bounds().Size()
+		w.Header().Add("DstImage-Width", strconv.Itoa(dstSize.X))
+		w.Header().Add("DstImage-Height", strconv.Itoa(dstSize.Y))
+
+		quality := parseInt(r, "jpeg", 90)
+		if quality < 0 || quality > 100 {
+			err = png.Encode(w, m)
+		} else {
+			err = jpeg.Encode(w, m, &jpeg.Options{Quality: quality})
+		}
 		if err != nil {
 			httpErr(w, r, http.StatusInternalServerError, "Err: ", err)
-			return
 		}
 	})
 	http.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
 		r.Header.Add("Accept", "text/html")
 		w.Write([]byte(form))
 	})
-	log.Fatal(http.ListenAndServe(":5000", nil))
+
+	log.Println("Start Thumbnail service at :5000")
+	log.Fatal(http.ListenAndServe(":4000", nil))
 }
 
 func httpErr(w http.ResponseWriter, r *http.Request, code int, msg string, err error) {
@@ -120,12 +122,12 @@ func httpErr(w http.ResponseWriter, r *http.Request, code int, msg string, err e
 	log.Println(r.Method, code, r.RequestURI, status, err)
 }
 
-func parseUint(r *http.Request, name string, def uint) uint {
+func parseInt(r *http.Request, name string, def int) int {
 	n, err := strconv.ParseUint(r.FormValue("w"), 10, 32)
 	if err != nil {
 		return def
 	}
-	return uint(n)
+	return int(n)
 }
 
 func ffmpeg(r io.Reader, w io.Writer) error {
@@ -156,6 +158,8 @@ const form = `
 	<input type="text" name="w" value="200">
 	<input type="text" name="h" value="200">
 	<br>
+	jpeg: <input type="text" name="jpeg" value="90">
+	<br>
 
 	interp: <select name="interp">
 		<option value="">Default</option>
@@ -170,9 +174,13 @@ const form = `
 
 	<br>
 	<br>
-	Just POST with [file (required), w(=200), h(=200), interp(=NearestNeighbor)] options.
+	Just POST with
+	[file (required), w(=200), h(=200), interp(=NearestNeighbor), jpeg(=90)]
+	options.
 	<br>
 	interp option case-insensitive
+	<br>
+	if jpeg not valid, output is png-file.
 
 </form>
 </body>
