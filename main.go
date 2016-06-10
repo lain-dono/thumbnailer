@@ -108,7 +108,7 @@ func main() {
 	})
 
 	log.Println("Start Thumbnail service at :5000")
-	log.Fatal(http.ListenAndServe(":4000", nil))
+	log.Fatal(http.ListenAndServe(":5000", nil))
 }
 
 func httpErr(w http.ResponseWriter, r *http.Request, code int, msg string, err error) {
