@@ -9,19 +9,35 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
 	"path"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/nfnt/resize"
 )
 
+/*
+#cgo CFLAGS: -I.
+#cgo LDFLAGS: -L. -lm
+
+#include <stdio.h>
+#define NANOSVG_IMPLEMENTATION
+#include "nanosvg.h"
+#define NANOSVGRAST_IMPLEMENTATION
+#include "nanosvgrast.h"
+*/
+import "C"
+
 const defaultMaxWidth = 200
 const defaultMaxHeight = 200
 const defaultInterp = "NearestNeighbor"
+
+const dpi = 96
 
 var httpAddr = flag.String("http", ":5000", "HTTP service address (e.g., ':5000')")
 
@@ -60,6 +76,8 @@ func main() {
 			m, err = gif.Decode(file)
 		case ".jpg", ".jpeg":
 			m, err = jpeg.Decode(file)
+		case ".svg":
+			m, err = rasterizeSVG(file)
 		default:
 			httpErr(w, r, http.StatusBadRequest, "Bad file type: "+header.Filename, nil)
 			return
@@ -133,6 +151,44 @@ func parseInt(r *http.Request, name string, def int) int {
 		return def
 	}
 	return int(n)
+}
+
+var failOpenSVG = errors.New("Could not open SVG image.")
+var failRasterSVG = errors.New("Could not init rasterizer.")
+
+func rasterizeSVG(file io.Reader) (m *image.RGBA, err error) {
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return
+	}
+
+	var svg *C.NSVGimage
+	svg = C.nsvgParse(C.CString(string(data)), C.CString("px"), dpi)
+	defer C.nsvgDelete(svg)
+	if svg == nil {
+		err = failOpenSVG
+		return
+	}
+
+	w := C.int(svg.width)
+	h := C.int(svg.height)
+
+	var rast *C.NSVGrasterizer
+	rast = C.nsvgCreateRasterizer()
+	defer C.nsvgDeleteRasterizer(rast)
+	if rast == nil {
+		err = failRasterSVG
+		return
+	}
+
+	m = image.NewRGBA(image.Rect(0, 0, int(w), int(h)))
+
+	C.nsvgRasterize(
+		rast, svg, 0, 0, 1,
+		(*C.uchar)(unsafe.Pointer(&m.Pix[0])),
+		w, h, w*4)
+
+	return
 }
 
 func ffmpeg(r io.Reader, w io.Writer) error {

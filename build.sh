@@ -59,7 +59,7 @@ fi
 
 echo "make tool"
 go get github.com/nfnt/resize
-CGO_ENABLED=0 go build -ldflags '-extldflags "-static"' -o $NAME main.go
+CGO_ENABLED=1 go build -ldflags '-extldflags "-static"' -o $NAME main.go
 
 strip -s $NAME
 
