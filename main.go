@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"flag"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -22,7 +23,11 @@ const defaultMaxWidth = 200
 const defaultMaxHeight = 200
 const defaultInterp = "NearestNeighbor"
 
+var httpAddr = flag.String("http", ":5000", "HTTP service address (e.g., ':5000')")
+
 func main() {
+	flag.Parse()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			httpErr(w, r, http.StatusMethodNotAllowed, "Hint: use POST method", nil)
@@ -107,8 +112,8 @@ func main() {
 		w.Write([]byte(form))
 	})
 
-	log.Println("Start Thumbnail service at :5000")
-	log.Fatal(http.ListenAndServe(":5000", nil))
+	log.Println("start thumbnail service at", *httpAddr)
+	log.Fatal(http.ListenAndServe(*httpAddr, nil))
 }
 
 func httpErr(w http.ResponseWriter, r *http.Request, code int, msg string, err error) {
